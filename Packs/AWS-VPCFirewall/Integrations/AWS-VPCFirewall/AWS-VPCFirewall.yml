@@ -1,6 +1,6 @@
 category: IT Services
 commonfields:
-  id: AWS - VPC Firewall (Alpha)
+  id: AWS-VPCFirewall
   version: -1
 configuration:
 - defaultvalue: us-west-1
@@ -41,8 +41,8 @@ configuration:
   required: false
   type: 8
 description: Amazon Web Services VPC Firewall
-display: AWS - VPC Firewall (Alpha)
-name: AWS - VPC Firewall (Alpha)
+display: AWS - VPC Firewall (Beta)
+name: AWS-VPCFirewall
 script:
   commands:
   - arguments:
