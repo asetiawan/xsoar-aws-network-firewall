@@ -123,8 +123,6 @@ def aws_session(service='vpcfirewall', region=None, roleArn=None, roleSessionNam
             client = boto3.client(
                 service_name=service,
                 region_name=AWS_DEFAULT_REGION,
-                aws_access_key_id=AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
                 verify=VERIFY_CERTIFICATE,
                 config=config
             )

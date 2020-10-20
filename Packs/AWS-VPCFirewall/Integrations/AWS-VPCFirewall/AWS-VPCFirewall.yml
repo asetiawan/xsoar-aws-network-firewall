@@ -21,7 +21,7 @@ configuration:
 - display: Role Session Duration
   name: sessionDuration
   required: false
-  type: 13
+  type: 0
 - display: Access Key
   name: access_key
   required: false
