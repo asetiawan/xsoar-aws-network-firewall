@@ -199,6 +199,8 @@ def parse_date(dt):
 
 
 """MAIN FUNCTIONS"""
+
+
 def create_firewall_command(args):
     client = aws_session(
         region=args.get('region'),
@@ -243,6 +245,7 @@ def create_firewall_policy_command(args):
     try:
         kwargs['FirewallPolicy'] = json.loads(args.get('FirewallPolicy'))
     except Exception as e:
+        LOG(str(e))
         return_error("Error encountered when parsing FirewallPolicy. Expected JSON FirewallPolicy object")
 
     if args.get('Description') is not None:
@@ -268,6 +271,7 @@ def create_rule_group_command(args):
     try:
         rule_group = json.loads(args.get('RuleGroup'))
     except Exception as e:
+        LOG(str(e))
         return_error("Error encountered when parsing RuleGroup. Expected JSON RuleGroup object")
 
     kwargs = {
@@ -276,7 +280,6 @@ def create_rule_group_command(args):
         'RuleGroupName': args.get('RuleGroupName'),
         'Type': args.get('Type')
     }
-
 
     if args.get('Description') is not None:
         kwargs['Description'] = args.get('Description')
@@ -470,7 +473,7 @@ def update_firewall_policy_command(args):
     kwargs = {}
 
     if args.get('FirewallPolicyName') is not None:
-            kwargs['FirewallPolicyName'] = args.get('FirewallPolicyName')
+        kwargs['FirewallPolicyName'] = args.get('FirewallPolicyName')
     elif args.get('FirewallPolicyArn') is not None:
         kwargs['FirewallPolicyArn'] = args.get('FirewallPolicyArn')
     else:
@@ -484,6 +487,7 @@ def update_firewall_policy_command(args):
     try:
         kwargs['FirewallPolicy'] = json.loads(args.get('FirewallPolicy'))
     except Exception as e:
+        LOG(str(e))
         return_error("Error encountered when parsing FirewallPolicy. Expected JSON FirewallPolicy object")
 
     if args.get('Description') is not None:
@@ -523,6 +527,7 @@ def update_rule_group_command(args):
     try:
         kwargs['RuleGroup'] = json.loads(args.get('RuleGroup'))
     except Exception as e:
+        LOG(str(e))
         return_error("Error encountered when parsing RuleGroup. Expected JSON RuleGroup object")
 
     if args.get('Description') is not None:
@@ -608,9 +613,9 @@ def delete_rule_group_command(args):
     return_outputs(human_readable)
 
 
-
-
 """COMMAND BLOCK"""
+
+
 try:
     LOG('Command being called is {command}'.format(command=demisto.command()))
     if demisto.command() == 'test-module':
@@ -649,12 +654,11 @@ try:
     elif demisto.command() == 'aws-vpcfirewall-delete-rule-group':
         delete_rule_group_command(demisto.args())
 
-
-
 except ResponseParserError as e:
-    return_error('Could not connect to the AWS endpoint. Please check that the region is valid.\n {error}'.format(
-        error=e))
-    LOG(e.message)
+    LOG(str(e))
+    return_error(
+        'Could not connect to the AWS endpoint. Please check that the region is valid.\n {error}'.format(
+            error=type(e)))
 
 except Exception as e:
     LOG(str(e))
