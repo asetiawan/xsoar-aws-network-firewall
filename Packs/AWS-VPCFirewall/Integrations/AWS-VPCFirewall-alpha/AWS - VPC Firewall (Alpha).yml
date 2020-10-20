@@ -1,0 +1,385 @@
+category: IT Services
+commonfields:
+  id: AWS - VPC Firewall (Alpha)
+  version: -1
+configuration:
+- defaultvalue: us-west-1
+  display: AWS Default Region
+  name: defaultRegion
+  options:
+  - us-west-1
+  required: true
+  type: 15
+- display: Role Arn
+  name: roleArn
+  required: false
+  type: 0
+- display: Role Session Name
+  name: roleSessionName
+  required: false
+  type: 0
+- display: Role Session Duration
+  name: sessionDuration
+  required: false
+  type: 13
+- display: Access Key
+  name: access_key
+  required: false
+  type: 0
+- display: Secret Key
+  name: secret_key
+  required: false
+  type: 4
+- display: Use system proxy settings
+  hidden: false
+  name: proxy
+  required: false
+  type: 8
+- display: Trust any certificate (not secure)
+  hidden: false
+  name: insecure
+  required: false
+  type: 8
+description: Amazon Web Services VPC Firewall
+display: AWS - VPC Firewall (Alpha)
+name: AWS - VPC Firewall (Alpha)
+script:
+  commands:
+  - arguments:
+    - auto: PREDEFINED
+      default: false
+      defaultValue: 'no'
+      description: A flag indicating whether it is possible to delete the firewall
+      isArray: false
+      name: DeleteProtection
+      predefined:
+      - 'yes'
+      - 'no'
+      required: false
+      secret: false
+    - default: false
+      description: A description of the firewall.
+      isArray: false
+      name: Description
+      required: false
+      secret: false
+    - default: false
+      description: The descriptive name of the firewall
+      isArray: false
+      name: FirewallName
+      required: true
+      secret: false
+    - default: false
+      description: The Amazon Resource Name (ARN) of the FirewallPolicy
+      isArray: false
+      name: FirewallPolicyArn
+      required: true
+      secret: false
+    - default: false
+      description: Array of the subnet mapping
+      isArray: false
+      name: SubnetMappings
+      required: true
+      secret: false
+    - default: false
+      description: VPC Where VPC Firewall will be created
+      isArray: false
+      name: VpcId
+      required: true
+      secret: false
+    deprecated: false
+    description: Create AWS Firewall
+    execution: false
+    name: aws-vpcfirewall-create-firewall
+  - arguments:
+    - default: false
+      description: A description of the firewall policy.
+      isArray: false
+      name: Description
+      required: false
+      secret: false
+    - default: false
+      description: The rule groups and policy actions to use in the firewall policy.
+      isArray: false
+      name: FirewallPolicy
+      required: true
+      secret: false
+    - default: false
+      description: The descriptive name of the firewall policy.
+      isArray: false
+      name: FirewallPolicyName
+      required: true
+      secret: false
+    deprecated: false
+    description: Creates the firewall policy for the firewall according to the specifications
+    execution: false
+    name: aws-vpcfirewall-create-firewall-policy
+  - arguments:
+    - default: false
+      description: The maximum operating resources that this rule group can use
+      isArray: false
+      name: Capacity
+      required: true
+      secret: false
+    - default: false
+      description: A description of the rule group.
+      isArray: false
+      name: Description
+      required: false
+      secret: false
+    - default: false
+      description: An object that defines the rule group rules (JSON)
+      isArray: false
+      name: RuleGroup
+      required: true
+      secret: false
+    - default: false
+      description: The descriptive name of the rule group
+      isArray: false
+      name: RuleGroupName
+      required: true
+      secret: false
+    - auto: PREDEFINED
+      default: false
+      description: Indicates whether the rule group is stateless or stateful
+      isArray: false
+      name: Type
+      predefined:
+      - STATELESS
+      - STATEFUL
+      required: true
+      secret: false
+    deprecated: false
+    description: Creates the specified stateless or stateful rule group
+    execution: false
+    name: aws-vpcfirewall-create-rule-group
+  - arguments:
+    - default: false
+      description: The Amazon Resource Name (ARN) of the firewall.
+      isArray: false
+      name: FirewallArn
+      required: false
+      secret: false
+    - default: false
+      description: The descriptive name of the firewall. You can't change the name
+        of a firewall after you create it.
+      isArray: false
+      name: FirewallName
+      required: false
+      secret: false
+    deprecated: false
+    description: Returns the data objects for the specified firewall.
+    execution: false
+    name: aws-vpcfirewall-describe-firewall
+  - arguments:
+    - default: false
+      description: The Amazon Resource Name (ARN) of the firewall policy.
+      isArray: false
+      name: FirewallPolicyArn
+      required: false
+      secret: false
+    - default: false
+      description: The descriptive name of the firewall policy.
+      isArray: false
+      name: FirewallPolicyName
+      required: false
+      secret: false
+    deprecated: false
+    description: Returns the data objects for the specified firewall policy.
+    execution: false
+    name: aws-vpcfirewall-describe-firewall-policy
+  - arguments:
+    - default: false
+      description: The Amazon Resource Name (ARN) of the rule group.
+      isArray: false
+      name: RuleGroupArn
+      required: false
+      secret: false
+    - default: false
+      description: The descriptive name of the rule group.
+      isArray: false
+      name: RuleGroupName
+      required: false
+      secret: false
+    - auto: PREDEFINED
+      default: false
+      isArray: false
+      name: Type
+      predefined:
+      - STATELESS
+      - STATEFUL
+      required: false
+      secret: false
+    deprecated: false
+    description: Returns the data objects for the specified rule group.
+    execution: false
+    name: aws-vpcfirewall-describe-rule-group
+  - arguments:
+    - default: false
+      defaultValue: '5'
+      isArray: false
+      name: MaxResults
+      required: false
+      secret: false
+    - default: false
+      isArray: false
+      name: VpcIds
+      required: false
+      secret: false
+    deprecated: false
+    description: Retrieves the metadata for the firewalls that you have defined. By
+      default, 5 firewalls are retrieved per API call.
+    execution: false
+    name: aws-vpcfirewall-list-firewalls
+  - arguments:
+    - default: false
+      defaultValue: '5'
+      isArray: false
+      name: MaxResults
+      required: false
+      secret: false
+    deprecated: false
+    description: Retrieves the metadata for the firewall policies that you have defined.
+      By default, 5 firewall policies are retrieved per API call.
+    execution: false
+    name: aws-vpcfirewall-list-firewall-policies
+  - arguments:
+    - default: false
+      defaultValue: '5'
+      isArray: false
+      name: MaxResults
+      required: false
+      secret: false
+    deprecated: false
+    description: Retrieves the metadata for the rule groups that you have defined.
+      By default, 5 rule groups are retrieved per API call.
+    execution: false
+    name: aws-vpcfirewall-list-rule-groups
+  - arguments:
+    - default: false
+      description: A description of the firewall policy
+      isArray: false
+      name: Description
+      required: false
+      secret: false
+    - default: false
+      description: The updated firewall policy to use for the firewall.
+      isArray: false
+      name: FirewallPolicy
+      required: true
+      secret: false
+    - default: false
+      description: The Amazon Resource Name (ARN) of the firewall policy.
+      isArray: false
+      name: FirewallPolicyArn
+      required: false
+      secret: false
+    - default: false
+      description: The descriptive name of the firewall policy
+      isArray: false
+      name: FirewallPolicyName
+      required: false
+      secret: false
+    deprecated: false
+    description: Updates the properties of the specified firewall policy
+    execution: false
+    name: aws-vpcfirewall-update-firewall-policy
+  - arguments:
+    - default: false
+      description: A description of the rule group.
+      isArray: false
+      name: Description
+      required: false
+      secret: false
+    - default: false
+      description: An object that defines the rule group rules.
+      isArray: false
+      name: RuleGroup
+      required: true
+      secret: false
+    - default: false
+      description: The Amazon Resource Name (ARN) of the rule group
+      isArray: false
+      name: RuleGroupArn
+      required: false
+      secret: false
+    - default: false
+      description: The descriptive name of the rule group
+      isArray: false
+      name: RuleGroupName
+      required: false
+      secret: false
+    deprecated: false
+    description: Updates the rule settings for the specified rule group.
+    execution: false
+    name: aws-vpcfirewall-update-rule-group
+  - arguments:
+    - default: false
+      description: The Amazon Resource Name (ARN) of the firewall.
+      isArray: false
+      name: FirewallArn
+      required: false
+      secret: false
+    - default: false
+      description: The descriptive name of the firewall
+      isArray: false
+      name: FirewallName
+      required: false
+      secret: false
+    deprecated: false
+    description: Deletes the specified Firewall  and its FirewallStatus
+    execution: true
+    name: aws-vpcfirewall-delete-firewall
+  - arguments:
+    - default: false
+      description: The descriptive name of the firewall policy.
+      isArray: false
+      name: FirewallPolicyName
+      required: false
+      secret: false
+    - default: false
+      description: The Amazon Resource Name (ARN) of the firewall policy
+      isArray: false
+      name: FirewallPolicyArn
+      required: false
+      secret: false
+    deprecated: false
+    description: Deletes the specified FirewallPolicy
+    execution: true
+    name: aws-vpcfirewall-delete-firewall-policy
+  - arguments:
+    - default: false
+      description: The Amazon Resource Name (ARN) of the rule group
+      isArray: false
+      name: RuleGroupArn
+      required: false
+      secret: false
+    - default: false
+      description: The descriptive name of the rule group
+      isArray: false
+      name: RuleGroupName
+      required: false
+      secret: false
+    - auto: PREDEFINED
+      default: false
+      description: Indicates whether the rule group is stateless or stateful
+      isArray: false
+      name: Type
+      predefined:
+      - STATELESS
+      - STATEFUL
+      required: true
+      secret: false
+    deprecated: false
+    description: Deletes the specified RuleGroup
+    execution: true
+    name: aws-vpcfirewall-delete-rule-group
+  dockerimage: asetiawa/awslab:vpc
+  feed: false
+  isfetch: false
+  longRunning: false
+  longRunningPort: false
+  runonce: false
+  script: '-'
+  subtype: python3
+  type: python
