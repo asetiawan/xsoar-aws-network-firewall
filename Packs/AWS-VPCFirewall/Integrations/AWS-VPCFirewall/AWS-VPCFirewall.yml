@@ -203,6 +203,7 @@ script:
       secret: false
     - auto: PREDEFINED
       default: false
+      description: Indicates whether the rule group is stateless or stateful
       isArray: false
       name: Type
       predefined:
@@ -217,11 +218,16 @@ script:
   - arguments:
     - default: false
       defaultValue: '5'
+      description: The maximum number of objects that you want AWS to return for this
+        request
       isArray: false
       name: MaxResults
       required: false
       secret: false
     - default: false
+      description: The unique identifiers of the VPCs that you want AWS  to retrieve
+        the firewalls for. Leave this blank to retrieve all firewalls that you have
+        defined.
       isArray: false
       name: VpcIds
       required: false
@@ -234,6 +240,8 @@ script:
   - arguments:
     - default: false
       defaultValue: '5'
+      description: The maximum number of objects that you want AWS to return for this
+        request
       isArray: false
       name: MaxResults
       required: false
@@ -246,6 +254,8 @@ script:
   - arguments:
     - default: false
       defaultValue: '5'
+      description: The maximum number of objects that you want AWS to return for this
+        request
       isArray: false
       name: MaxResults
       required: false
