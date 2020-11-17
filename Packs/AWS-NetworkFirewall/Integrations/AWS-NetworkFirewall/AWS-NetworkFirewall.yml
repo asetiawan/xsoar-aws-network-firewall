@@ -1,13 +1,14 @@
 category: IT Services
 commonfields:
-  id: AWS-VPCFirewall
+  id: AWS-NetworkFirewall
   version: -1
 configuration:
-- defaultvalue: us-west-1
+- defaultvalue: us-west-2
   display: AWS Default Region
   name: defaultRegion
   options:
   - us-west-1
+  - us-west-2
   required: true
   type: 15
 - display: Role Arn
@@ -40,9 +41,9 @@ configuration:
   name: insecure
   required: false
   type: 8
-description: Amazon Web Services VPC Firewall
-display: AWS - VPC Firewall (Beta)
-name: AWS-VPCFirewall
+description: Amazon Web Services Network Firewall
+display: AWS - Network Firewall (Beta)
+name: AWS-NetworkFirewall
 script:
   commands:
   - arguments:
@@ -90,7 +91,26 @@ script:
     deprecated: false
     description: Create AWS Firewall
     execution: false
-    name: aws-vpcfirewall-create-firewall
+    name: aws-network-firewall-create-firewall
+    outputs:
+    - contextPath: AWS.NetworkFirewall.Firewall.Firewall.FirewallName
+      description: The descriptive name of the firewall.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewall.Firewall.FirewallArn
+      description: The Amazon Resource Name (ARN) of the firewall.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewall.Firewall.FirewallPolicyArn
+      description: The Amazon Resource Name (ARN) of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewall.Firewall.VpcId
+      description: The unique identifier of the VPC where the firewall is in use.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewall.Firewall.Description
+      description: A description of the firewall.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewall.Firewall.FirewallId
+      description: The unique identifier for the firewall.
+      type: String
   - arguments:
     - default: false
       description: A description of the firewall policy.
@@ -113,7 +133,23 @@ script:
     deprecated: false
     description: Creates the firewall policy for the firewall according to the specifications
     execution: false
-    name: aws-vpcfirewall-create-firewall-policy
+    name: aws-network-firewall-create-firewall-policy
+    outputs:
+    - contextPath: AWS.NetworkFirewall.FirewallPolicy.FirewallPolicyName
+      description: The descriptive name of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicy.FirewallPolicyArn
+      description: The Amazon Resource Name (ARN) of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicy.FirewallPolicyId
+      description: The unique identifier for the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicy.Description
+      description: A description of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicy.FirewallPolicyStatus
+      description: The current status of the firewall policy.
+      type: String
   - arguments:
     - default: false
       description: The maximum operating resources that this rule group can use
@@ -152,7 +188,29 @@ script:
     deprecated: false
     description: Creates the specified stateless or stateful rule group
     execution: false
-    name: aws-vpcfirewall-create-rule-group
+    name: aws-network-firewall-create-rule-group
+    outputs:
+    - contextPath: AWS.NetworkFirewall.RuleGroup.RuleGroupArn
+      description: The Amazon Resource Name (ARN) of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroup.RuleGroupName
+      description: The descriptive name of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroup.RuleGroupId
+      description: The unique identifier for the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroup.Description
+      description: A description of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroup.Type
+      description: Indicates whether the rule group is stateless or stateful.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroup.Capacity
+      description: The maximum operating resources that this rule group can use.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroup.RuleGroupStatus
+      description: Detailed information about the current status of a rule group.
+      type: String
   - arguments:
     - default: false
       description: The Amazon Resource Name (ARN) of the firewall.
@@ -170,7 +228,26 @@ script:
     deprecated: false
     description: Returns the data objects for the specified firewall.
     execution: false
-    name: aws-vpcfirewall-describe-firewall
+    name: aws-network-firewall-describe-firewall
+    outputs:
+    - contextPath: AWS.NetworkFirewall.Firewalls.Firewall.FirewallName
+      description: The descriptive name of the firewall.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewalls.Firewall.FirewallArn
+      description: The Amazon Resource Name (ARN) of the firewall.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewalls.Firewall.FirewallPolicyArn
+      description: The Amazon Resource Name (ARN) of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewalls.Firewall.VpcId
+      description: The unique identifier of the VPC where the firewall is in use.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewalls.Firewall.Description
+      description: A description of the firewall.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewalls.Firewall.FirewallId
+      description: The unique identifier for the firewall.
+      type: String
   - arguments:
     - default: false
       description: The Amazon Resource Name (ARN) of the firewall policy.
@@ -187,7 +264,23 @@ script:
     deprecated: false
     description: Returns the data objects for the specified firewall policy.
     execution: false
-    name: aws-vpcfirewall-describe-firewall-policy
+    name: aws-network-firewall-describe-firewall-policy
+    outputs:
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyName
+      description: The descriptive name of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyArn
+      description: The Amazon Resource Name (ARN) of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyId
+      description: The unique identifier for the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.Description
+      description: A description of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyStatus
+      description: The current status of the firewall policy.
+      type: String
   - arguments:
     - default: false
       description: The Amazon Resource Name (ARN) of the rule group.
@@ -214,7 +307,29 @@ script:
     deprecated: false
     description: Returns the data objects for the specified rule group.
     execution: false
-    name: aws-vpcfirewall-describe-rule-group
+    name: aws-network-firewall-describe-rule-group
+    outputs:
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupArn
+      description: The Amazon Resource Name (ARN) of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupName
+      description: The descriptive name of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupId
+      description: The unique identifier for the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.Description
+      description: A description of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.Type
+      description: Indicates whether the rule group is stateless or stateful.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.Capacity
+      description: The maximum operating resources that this rule group can use.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupStatus
+      description: Detailed information about the current status of a rule group.
+      type: String
   - arguments:
     - default: false
       defaultValue: '5'
@@ -236,7 +351,14 @@ script:
     description: Retrieves the metadata for the firewalls that you have defined. By
       default, 5 firewalls are retrieved per API call.
     execution: false
-    name: aws-vpcfirewall-list-firewalls
+    name: aws-network-firewall-list-firewalls
+    outputs:
+    - contextPath: AWS.NetworkFirewall.Firewalls.FirewallName
+      description: The descriptive name of the firewall.
+      type: String
+    - contextPath: AWS.NetworkFirewall.Firewalls.FirewallArn
+      description: The Amazon Resource Name (ARN) of the firewall.
+      type: String
   - arguments:
     - default: false
       defaultValue: '5'
@@ -250,7 +372,23 @@ script:
     description: Retrieves the metadata for the firewall policies that you have defined.
       By default, 5 firewall policies are retrieved per API call.
     execution: false
-    name: aws-vpcfirewall-list-firewall-policies
+    name: aws-network-firewall-list-firewall-policies
+    outputs:
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyName
+      description: The descriptive name of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyArn
+      description: The Amazon Resource Name (ARN) of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyId
+      description: The unique identifier for the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.Description
+      description: A description of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyStatus
+      description: The current status of the firewall policy.
+      type: String
   - arguments:
     - default: false
       defaultValue: '5'
@@ -264,7 +402,29 @@ script:
     description: Retrieves the metadata for the rule groups that you have defined.
       By default, 5 rule groups are retrieved per API call.
     execution: false
-    name: aws-vpcfirewall-list-rule-groups
+    name: aws-network-firewall-list-rule-groups
+    outputs:
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupArn
+      description: The Amazon Resource Name (ARN) of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupName
+      description: The descriptive name of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupId
+      description: The unique identifier for the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.Description
+      description: A description of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.Type
+      description: Indicates whether the rule group is stateless or stateful.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.Capacity
+      description: The maximum operating resources that this rule group can use.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupStatus
+      description: Detailed information about the current status of a rule group.
+      type: String
   - arguments:
     - default: false
       description: A description of the firewall policy
@@ -293,7 +453,23 @@ script:
     deprecated: false
     description: Updates the properties of the specified firewall policy
     execution: false
-    name: aws-vpcfirewall-update-firewall-policy
+    name: aws-network-firewall-update-firewall-policy
+    outputs:
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyName
+      description: The descriptive name of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyArn
+      description: The Amazon Resource Name (ARN) of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyId
+      description: The unique identifier for the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.Description
+      description: A description of the firewall policy.
+      type: String
+    - contextPath: AWS.NetworkFirewall.FirewallPolicies.FirewallPolicyStatus
+      description: The current status of the firewall policy.
+      type: String
   - arguments:
     - default: false
       description: A description of the rule group.
@@ -322,7 +498,29 @@ script:
     deprecated: false
     description: Updates the rule settings for the specified rule group.
     execution: false
-    name: aws-vpcfirewall-update-rule-group
+    name: aws-network-firewall-update-rule-group
+    outputs:
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupArn
+      description: The Amazon Resource Name (ARN) of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupName
+      description: The descriptive name of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupId
+      description: The unique identifier for the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.Description
+      description: A description of the rule group.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.Type
+      description: Indicates whether the rule group is stateless or stateful.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.Capacity
+      description: The maximum operating resources that this rule group can use.
+      type: String
+    - contextPath: AWS.NetworkFirewall.RuleGroups.RuleGroupStatus
+      description: Detailed information about the current status of a rule group.
+      type: String
   - arguments:
     - default: false
       description: The Amazon Resource Name (ARN) of the firewall.
@@ -339,7 +537,7 @@ script:
     deprecated: false
     description: Deletes the specified Firewall  and its FirewallStatus
     execution: true
-    name: aws-vpcfirewall-delete-firewall
+    name: aws-network-firewall-delete-firewall
   - arguments:
     - default: false
       description: The descriptive name of the firewall policy.
@@ -356,7 +554,7 @@ script:
     deprecated: false
     description: Deletes the specified FirewallPolicy
     execution: true
-    name: aws-vpcfirewall-delete-firewall-policy
+    name: aws-network-firewall-delete-firewall-policy
   - arguments:
     - default: false
       description: The Amazon Resource Name (ARN) of the rule group
@@ -383,8 +581,8 @@ script:
     deprecated: false
     description: Deletes the specified RuleGroup
     execution: true
-    name: aws-vpcfirewall-delete-rule-group
-  dockerimage: asetiawa/awslab:vpc
+    name: aws-network-firewall-delete-rule-group
+  dockerimage: asetiawa/aws-firewall:1.1.0
   feed: false
   isfetch: false
   longRunning: false
@@ -393,6 +591,6 @@ script:
   script: '-'
   subtype: python3
   type: python
-fromversion: 5.0.0
 tests:
-  - No test - Beta
+- No test - Beta
+fromversion: 5.0.0

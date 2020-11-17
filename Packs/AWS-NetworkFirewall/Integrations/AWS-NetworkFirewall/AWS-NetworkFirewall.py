@@ -39,7 +39,7 @@ config = Config(
 
 
 # noinspection PyTypeChecker,PyTypeChecker
-def aws_session(service='vpcfirewall', region=None, roleArn=None, roleSessionName=None, roleSessionDuration=None,
+def aws_session(service='network-firewall', region=None, roleArn=None, roleSessionName=None, roleSessionDuration=None,
                 rolePolicy=None):
     kwargs = {}
     if roleArn and roleSessionName is not None:
@@ -223,8 +223,17 @@ def create_firewall_command(args):
         kwargs['Description'] = args.get('Description')
 
     response = client.create_firewall(**kwargs)
-    ec = {'AWS.VPCFirewall.Firewall': response}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Firewall Created', response)
+    if 'Firewall' in response and 'FirewallStatus' in response and 'UpdateToken' in response:
+        data = {
+            'Firewall': response['Firewall'],
+            'FirewallStatus': response['FirewallStatus'],
+            'UpdateToken': response['UpdateToken']
+        }
+    else:
+        data = response
+
+    ec = {'AWS.NetworkFirewall.Firewall': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Created', data)
     return_outputs(human_readable, ec)
 
 
@@ -251,10 +260,10 @@ def create_firewall_policy_command(args):
 
     response = client.create_firewall_policy(**kwargs)
 
-    data = json.loads(json.dumps(response))
+    data = response['FirewallPolicyResponse']
 
-    ec = {'AWS.VPCFirewall.FirewallPolicy': data}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Firewall Policy Created', data)
+    ec = {'AWS.NetworkFirewall.FirewallPolicy': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policy Created', data)
     return_outputs(human_readable, ec)
 
 
@@ -286,8 +295,8 @@ def create_rule_group_command(args):
     data = response['RuleGroupResponse']
     data['UpdateToken'] = response['UpdateToken']
 
-    ec = {'AWS.VPCFirewall.RuleGroup': data}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Rule Group Creation', data)
+    ec = {'AWS.NetworkFirewall.RuleGroup': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - Rule Group Creation', data)
     return_outputs(human_readable, ec)
 
 
@@ -318,8 +327,8 @@ def describe_firewall_command(args):
     else:
         data = response
 
-    ec = {'AWS.VPCFirewall.Firewall': data}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Firewall', data)
+    ec = {'AWS.NetworkFirewall.Firewall': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - Firewall', data)
     return_outputs(human_readable, ec)
 
 
@@ -350,8 +359,8 @@ def describe_firewall_policy_command(args):
     else:
         data = response
 
-    ec = {'AWS.VPCFirewall.FirewallPolicy': data}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Firewall Policy', data)
+    ec = {'AWS.NetworkFirewall.FirewallPolicies': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policy', data)
     return_outputs(human_readable, ec)
 
 
@@ -383,8 +392,8 @@ def describe_rule_group_command(args):
     else:
         data = response
 
-    ec = {'AWS.VPCFirewall.RuleGroup': data}
-    human_readable = tableToMarkdown('AWS VPC Firewall - RuleGroup', data)
+    ec = {'AWS.NetworkFirewall.RuleGroups': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - RuleGroup', data)
     return_outputs(human_readable, ec)
 
 
@@ -409,8 +418,8 @@ def list_firewalls_command(args):
     for firewall in response["Firewalls"]:
         data.append(firewall)
 
-    ec = {'AWS.VPCFirewall.Firewalls(val.FirewallArn === obj.FirewallArn)': data}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Firewalls', data)
+    ec = {'AWS.NetworkFirewall.Firewalls(val.FirewallArn === obj.FirewallArn)': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - Firewalls', data)
     return_outputs(human_readable, ec)
 
 
@@ -432,8 +441,8 @@ def list_firewall_policies_command(args):
     for fw_policy in response["FirewallPolicies"]:
         data.append(fw_policy)
 
-    ec = {'AWS.VPCFirewall.FirewallPolicies(val.Arn === obj.Arn)': data}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Firewall Policies', data)
+    ec = {'AWS.NetworkFirewall.FirewallPolicies(val.Arn === obj.Arn)': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policies', data)
     return_outputs(human_readable, ec)
 
 
@@ -455,8 +464,8 @@ def list_rule_groups_command(args):
     for rulegroup in response["RuleGroups"]:
         data.append(rulegroup)
 
-    ec = {'AWS.VPCFirewall.RuleGroups(val.Arn === obj.Arn)': data}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Rule Groups', data)
+    ec = {'AWS.NetworkFirewall.RuleGroups(val.Arn === obj.Arn)': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - Rule Groups', data)
     return_outputs(human_readable, ec)
 
 
@@ -493,8 +502,8 @@ def update_firewall_policy_command(args):
 
     response = client.update_firewall_policy(**kwargs)
 
-    ec = {'AWS.VPCFirewall.FirewallPolicy': response}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Firewall Policy Updated', response)
+    ec = {'AWS.NetworkFirewall.FirewallPolicy': response}
+    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policy Updated', response)
     return_outputs(human_readable, ec)
 
 
@@ -535,8 +544,8 @@ def update_rule_group_command(args):
     data = response['RuleGroupResponse']
     data['UpdateToken'] = response['UpdateToken']
 
-    ec = {'AWS.VPCFirewall.RuleGroup': data}
-    human_readable = tableToMarkdown('AWS VPC Firewall - Rule Group Updated', data)
+    ec = {'AWS.NetworkFirewall.RuleGroup': data}
+    human_readable = tableToMarkdown('AWS Network Firewall - Rule Group Updated', data)
     return_outputs(human_readable, ec)
 
 
@@ -558,7 +567,7 @@ def delete_firewall_command(args):
         return_error("You must specify the FirewallArn or the FirewallName, and you can specify both.")
 
     response = client.delete_firewall(**kwargs)
-    human_readable = tableToMarkdown('AWS VPC Firewall - Firewall Deletion', response)
+    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Deletion', response)
     return_outputs(human_readable)
 
 
@@ -581,7 +590,7 @@ def delete_firewall_policy_command(args):
     response = client.delete_firewall_policy(**kwargs)
     data = response['FirewallPolicyResponse']
 
-    human_readable = tableToMarkdown('AWS VPC Firewall - Firewall Policy Deletion', data)
+    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policy Deletion', data)
     return_outputs(human_readable)
 
 
@@ -607,7 +616,7 @@ def delete_rule_group_command(args):
     response = client.delete_rule_group(**kwargs)
     data = response['RuleGroupResponse']
 
-    human_readable = tableToMarkdown('AWS VPC Firewall - Rule Group Deletion', data)
+    human_readable = tableToMarkdown('AWS Network Firewall - Rule Group Deletion', data)
     return_outputs(human_readable)
 
 
@@ -623,33 +632,33 @@ try:
         if response['ResponseMetadata']['HTTPStatusCode'] == 200:
             demisto.results('ok')
 
-    elif demisto.command() == 'aws-vpcfirewall-create-firewall':
+    elif demisto.command() == 'aws-network-firewall-create-firewall':
         create_firewall_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-create-firewall-policy':
+    elif demisto.command() == 'aws-network-firewall-create-firewall-policy':
         create_firewall_policy_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-create-rule-group':
+    elif demisto.command() == 'aws-network-firewall-create-rule-group':
         create_rule_group_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-describe-firewall':
+    elif demisto.command() == 'aws-network-firewall-describe-firewall':
         describe_firewall_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-describe-firewall-policy':
+    elif demisto.command() == 'aws-network-firewall-describe-firewall-policy':
         describe_firewall_policy_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-describe-rule-group':
+    elif demisto.command() == 'aws-network-firewall-describe-rule-group':
         describe_rule_group_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-list-firewalls':
+    elif demisto.command() == 'aws-network-firewall-list-firewalls':
         list_firewalls_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-list-firewall-policies':
+    elif demisto.command() == 'aws-network-firewall-list-firewall-policies':
         list_firewall_policies_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-list-rule-groups':
+    elif demisto.command() == 'aws-network-firewall-list-rule-groups':
         list_rule_groups_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-update-firewall-policy':
+    elif demisto.command() == 'aws-network-firewall-update-firewall-policy':
         update_firewall_policy_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-update-rule-group':
+    elif demisto.command() == 'aws-network-firewall-update-rule-group':
         update_rule_group_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-delete-firewall':
+    elif demisto.command() == 'aws-network-firewall-delete-firewall':
         delete_firewall_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-delete-firewall-policy':
+    elif demisto.command() == 'aws-network-firewall-delete-firewall-policy':
         delete_firewall_policy_command(demisto.args())
-    elif demisto.command() == 'aws-vpcfirewall-delete-rule-group':
+    elif demisto.command() == 'aws-network-firewall-delete-rule-group':
         delete_rule_group_command(demisto.args())
 
 except ResponseParserError as e:
@@ -660,5 +669,5 @@ except ResponseParserError as e:
 
 except Exception as e:
     LOG(str(e))
-    return_error('Error has occurred in the AWS VPC Firewall Integration: {code}\n {message}'.format(
+    return_error('Error has occurred in the AWS Network Firewall Integration: {code}\n {message}'.format(
         code=type(e), message=str(e)))

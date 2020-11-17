@@ -1,13 +1,13 @@
 {
-    "name": "AWS-VPCFirewall",
-    "description": "Amazon Web Services VPC Firewall",
+    "name": "AWS-NetworkFirewall",
+    "description": "Amazon Web Services Network Firewall",
     "support": "xsoar",
     "price": 10,
     "currentVersion": "0.0.1",
     "author": "Cortex XSOAR",
     "url": "https://www.paloaltonetworks.com/cortex",
     "email": "",
-    "created": "2020-10-20T08:37:18Z",
+    "created": "2020-11-17T08:37:18Z",
     "categories": [
         "IT Services"
     ],
