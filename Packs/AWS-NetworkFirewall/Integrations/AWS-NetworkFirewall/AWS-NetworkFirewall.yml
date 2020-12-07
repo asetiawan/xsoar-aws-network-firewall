@@ -3533,7 +3533,7 @@ script:
         create a firewall, the operation initializes this setting to TRUE.
       type: Unknown
   dockerimage: demisto/boto3py3:1.0.0.1030
-  feed: true
+  feed: false
   isfetch: false
   longRunning: false
   longRunningPort: false
@@ -3541,3 +3541,6 @@ script:
   script: '-'
   subtype: python3
   type: python
+tests:
+- No test - Added later
+fromversion: 5.0.0
