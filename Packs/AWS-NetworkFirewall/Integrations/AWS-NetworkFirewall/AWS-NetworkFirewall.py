@@ -37,70 +37,9 @@ config = Config(
 """HELPER FUNCTIONS"""
 
 
-def safe_load_json(o):
-    kwargs = None
-    # Here we are checking the length of the entry to decide if it's a entry ID or json string.
-    if len(o) > 40:
-        try:
-            kwargs = json.loads(o)
-        except json.decoder.JSONDecodeError as e:
-            return_error(
-                'Unable to parse JSON string. Please verify the JSON is valid. - '+str(e))
-    else:
-        try:
-            path = demisto.getFilePath(o)
-            with open(path['path'], 'rb') as data:
-                try:
-                    kwargs = json.load(data)
-                except:
-                    kwargs = json.loads(data.read())
-        except Exception as e:
-            return_error('Unable to parse JSON file. Please verify the JSON is valid or the Entry'
-                         'ID is correct. - '+str(e))
-    return kwargs
-
-
 def myconverter(o):
     if isinstance(o, datetime.datetime):  # type: ignore
         return o.__str__()
-
-
-def remove_empty_elements(d):
-    """recursively remove empty lists, empty dicts, or None elements from a dictionary"""
-
-    def empty(x):
-        return x is None or x == {} or x == []
-
-    if not isinstance(d, (dict, list)):
-        return d
-    elif isinstance(d, list):
-        return [v for v in (remove_empty_elements(v) for v in d) if not empty(v)]
-    else:
-        return {k: v for k, v in ((k, remove_empty_elements(v)) for k, v in d.items()) if not empty(v)}
-
-
-def aws_table_to_markdown(response, table_header):
-    if isinstance(response, dict):
-        if len(response) == 1:
-            if isinstance(response[list(response.keys())[0]], dict) or isinstance(response[list(response.keys())[0]], list):
-                if isinstance(response[list(response.keys())[0]], list):
-                    list_response = response[list(response.keys())[0]]
-                    if isinstance(list_response[0], str):
-                        human_readable = tableToMarkdown(
-                            table_header, response)
-                    else:
-                        human_readable = tableToMarkdown(
-                            table_header, response[list(response.keys())[0]])
-                else:
-                    human_readable = tableToMarkdown(
-                        table_header, response[list(response.keys())[0]])
-            else:
-                human_readable = tableToMarkdown(table_header, response)
-        else:
-            human_readable = tableToMarkdown(table_header, response)
-    else:
-        human_readable = tableToMarkdown(table_header, response)
-    return human_readable
 
 
 def parse_resource_ids(resource_id):
@@ -477,7 +416,7 @@ def delete_resource_policy_command(args):
     response = client.delete_resource_policy(**kwargs)
     response = json.dumps(response, default=myconverter)
     response = json.loads(response)
-    outputs = {}
+    outputs = None
     del response['ResponseMetadata']
     table_header = 'AWS Network Firewall DeleteResourcePolicy'
     human_readable = aws_table_to_markdown(response, table_header)
@@ -814,7 +753,7 @@ def put_resource_policy_command(args):
     response = client.put_resource_policy(**kwargs)
     response = json.dumps(response, default=myconverter)
     response = json.loads(response)
-    outputs = {}
+    outputs = None
     del response['ResponseMetadata']
     table_header = 'AWS Network Firewall PutResourcePolicy'
     human_readable = aws_table_to_markdown(response, table_header)
@@ -842,7 +781,7 @@ def tag_resource_command(args):
     response = client.tag_resource(**kwargs)
     response = json.dumps(response, default=myconverter)
     response = json.loads(response)
-    outputs = {}
+    outputs = None
     del response['ResponseMetadata']
     table_header = 'AWS Network Firewall TagResource'
     human_readable = aws_table_to_markdown(response, table_header)
@@ -869,7 +808,7 @@ def untag_resource_command(args):
     response = client.untag_resource(**kwargs)
     response = json.dumps(response, default=myconverter)
     response = json.loads(response)
-    outputs = {}
+    outputs = None
     del response['ResponseMetadata']
     table_header = 'AWS Network Firewall UntagResource'
     human_readable = aws_table_to_markdown(response, table_header)
