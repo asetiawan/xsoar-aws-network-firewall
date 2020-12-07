@@ -3090,6 +3090,7 @@ script:
       required: true
       secret: false
     deprecated: false
+    description: Update the firewall policy change protection
     execution: false
     name: aws-network-firewall-update-firewall-policy-change-protection
     outputs:
@@ -3488,10 +3489,10 @@ script:
       secret: false
     - auto: PREDEFINED
       default: false
-      description: <p>A setting indicating whether the firewall is protected against
+      description: A setting indicating whether the firewall is protected against
         changes to the subnet associations. Use this setting to protect against accidentally
         modifying the subnet associations for a firewall that is in use. When you
-        create a firewall, the operation initializes this setting to <code>TRUE</code>.</p>
+        create a firewall, the operation initializes this setting to TRUE.
       isArray: false
       name: subnet_change_protection
       predefined:
@@ -3500,6 +3501,7 @@ script:
       required: true
       secret: false
     deprecated: false
+    description: Update the firewall subnet change  protection
     execution: false
     name: aws-network-firewall-update-subnet-change-protection
     outputs:
