@@ -231,9 +231,9 @@ script:
       required: false
       secret: false
     - default: false
-      description: The IDs of the subnets that you want to associate with the firewall.
-        (comma separated)
-      isArray: true
+      description: Comma-separated  IDs of the subnets that you want to associate
+        with the firewall.
+      isArray: false
       name: subnet_mappings_subnet_ids
       required: true
       secret: false
@@ -330,9 +330,9 @@ script:
       required: true
       secret: false
     - default: false
-      description: The IDs of the subnets that you want to associate with the firewall.
-        (comma separated)
-      isArray: true
+      description: Comma-separated  IDs of the subnets that you want to associate
+        with the firewall.
+      isArray: false
       name: subnet_mappings_subnet_ids
       required: true
       secret: false
@@ -2279,7 +2279,7 @@ script:
       description: A Comma-separated  unique identifiers of the VPCs that you want
         Network Firewall to retrieve the firewalls for. Leave this blank to retrieve
         all firewalls that you have defined.
-      isArray: true
+      isArray: false
       name: vpc_ids
       required: false
       secret: false
@@ -2638,7 +2638,7 @@ script:
       secret: false
     - default: false
       description: A Comma-separated keys to be removed from tags.
-      isArray: true
+      isArray: false
       name: tag_keys
       required: true
       secret: false
@@ -3532,7 +3532,7 @@ script:
         modifying the subnet associations for a firewall that is in use. When you
         create a firewall, the operation initializes this setting to TRUE.
       type: Unknown
-  dockerimage: demisto/boto3py3:1.0.0.1030
+  dockerimage: demisto/boto3py3:1.0.0.13762
   feed: false
   isfetch: false
   longRunning: false

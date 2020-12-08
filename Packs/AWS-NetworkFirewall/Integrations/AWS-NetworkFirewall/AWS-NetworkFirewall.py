@@ -43,6 +43,8 @@ def myconverter(o):
 
 
 def parse_resource_ids(resource_id):
+    if resource_id is None:
+        return None
     id_list = resource_id.replace(" ", "")
     resourceIds = id_list.split(",")
     return resourceIds
@@ -213,7 +215,7 @@ def associate_subnets_command(args):
         "FirewallName": args.get("firewall_name", None),
         "SubnetMappings": [],
     }
-    subnet_ids = args.get("subnet_mappings_subnet_ids")
+    subnet_ids = parse_resource_ids(args.get("subnet_mappings_subnet_ids"))
     for subnet_id in subnet_ids:
         kwargs["SubnetMappings"].append({
             "SubnetId": subnet_id
@@ -254,7 +256,7 @@ def create_firewall_command(args):
         "Description": args.get("description", None),
         "Tags": parse_tag_field(args.get("tags")),
     }
-    subnet_ids = args.get("subnet_mappings_subnet_ids")
+    subnet_ids = parse_resource_ids(args.get("subnet_mappings_subnet_ids"))
     for subnet_id in subnet_ids:
         kwargs["SubnetMappings"].append({
             "SubnetId": subnet_id
@@ -658,23 +660,26 @@ def list_firewalls_command(args):
     )
     kwargs = {
         "NextToken": args.get("next_token", None),
-        "VpcIds": parse_resource_ids(args.get("vpc_ids", "")),
-
+        "VpcIds": parse_resource_ids(args.get("vpc_ids", None)),
     }
+
     kwargs = remove_empty_elements(kwargs)
+
     if args.get('raw_json') is not None and not kwargs:
         del kwargs
         kwargs = safe_load_json(args.get('raw_json', "{ }"))
     elif args.get('raw_json') is not None and kwargs:
         return_error("Please remove other arguments before using 'raw-json'.")
+
     response = client.list_firewalls(**kwargs)
+
     response = json.dumps(response, default=myconverter)
     response = json.loads(response)
     outputs = {
         'AWS-NetworkFirewall.Firewalls(val.FirewallArn === obj.FirewallArn)': response.get('Firewalls')}
     del response['ResponseMetadata']
     table_header = 'AWS Network Firewall ListFirewalls'
-    human_readable = aws_table_to_markdown(response, table_header)
+    human_readable = tableToMarkdown(table_header, response)
     return human_readable, outputs, response
 
 
@@ -826,7 +831,7 @@ def update_firewall_delete_protection_command(args):
         "UpdateToken": args.get("update_token", None),
         "FirewallArn": args.get("firewall_arn", None),
         "FirewallName": args.get("firewall_name", None),
-        "DeleteProtection": True if args.get("delete_protection", "") == "true" else None
+        "DeleteProtection": True if args.get("delete_protection", "") == "True" else False
     }
     kwargs = remove_empty_elements(kwargs)
     if args.get('raw_json') is not None and not kwargs:
@@ -918,7 +923,7 @@ def update_firewall_policy_change_protection_command(args):
         "UpdateToken": args.get("update_token", None),
         "FirewallArn": args.get("firewall_arn", None),
         "FirewallName": args.get("firewall_name", None),
-        "FirewallPolicyChangeProtection": True if args.get("firewall_policy_change_protection", "") == "true" else None
+        "FirewallPolicyChangeProtection": True if args.get("firewall_policy_change_protection", "") == "True" else False
     }
     kwargs = remove_empty_elements(kwargs)
     if args.get('raw_json') is not None and not kwargs:
@@ -947,7 +952,7 @@ def update_logging_configuration_command(args):
     kwargs = {
         "FirewallArn": args.get("firewall_arn", None),
         "FirewallName": args.get("firewall_name", None),
-        "LoggingConfiguration_json": safe_load_json(args.get("logging_configuration_json", None)),
+        "LoggingConfiguration": safe_load_json(args.get("logging_configuration_json", None)),
     }
     kwargs = remove_empty_elements(kwargs)
     if args.get('raw_json') is not None and not kwargs:
@@ -1011,7 +1016,7 @@ def update_subnet_change_protection_command(args):
         "UpdateToken": args.get("update_token", None),
         "FirewallArn": args.get("firewall_arn", None),
         "FirewallName": args.get("firewall_name", None),
-        "SubnetChangeProtection": True if args.get("subnet_change_protection", "") == "true" else None
+        "SubnetChangeProtection": True if args.get("subnet_change_protection", "") == "True" else False
     }
     kwargs = remove_empty_elements(kwargs)
     if args.get('raw_json') is not None and not kwargs:
