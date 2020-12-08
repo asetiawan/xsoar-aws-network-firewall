@@ -2,19 +2,18 @@ import demistomock as demisto
 from CommonServerPython import *
 from CommonServerUserPython import *
 
-import logging
+# flake8: noqa
 import boto3
 import json
-import re
-from datetime import datetime, date
+import datetime  # type: ignore
 from botocore.config import Config
 from botocore.parsers import ResponseParserError
-
 import urllib3.util
+
 
 # Disable insecure warnings
 urllib3.disable_warnings()
-logging.getLogger('botocore').setLevel(logging.CRITICAL)
+
 
 """PARAMETERS"""
 AWS_DEFAULT_REGION = demisto.params().get('defaultRegion')
@@ -29,7 +28,7 @@ proxies = handle_proxy(proxy_param_name='proxy', checkbox_default_value=False)
 config = Config(
     connect_timeout=1,
     retries=dict(
-        max_attempts=1
+        max_attempts=5
     ),
     proxies=proxies
 )
@@ -38,9 +37,49 @@ config = Config(
 """HELPER FUNCTIONS"""
 
 
-# noinspection PyTypeChecker,PyTypeChecker
-def aws_session(service='network-firewall', region=None, roleArn=None, roleSessionName=None, roleSessionDuration=None,
-                rolePolicy=None):
+def myconverter(o):
+    if isinstance(o, datetime.datetime):  # type: ignore
+        return o.__str__()
+
+
+def parse_resource_ids(resource_id):
+    if resource_id is None:
+        return None
+    id_list = resource_id.replace(" ", "")
+    resourceIds = id_list.split(",")
+    return resourceIds
+
+
+def parse_tag_field(tags_str):
+    tags = []
+    regex = re.compile(
+        r'key=([\w\d_:.-]+),value=([ /\w\d@_,.*-]+)', flags=re.I)
+    if demisto.args().get('tag_key') and demisto.args().get('tag_value'):
+        if demisto.args().get('tags'):
+            return_error(
+                "Please select either the arguments 'tag_key' and 'tag_value' or only 'tags'.")
+        tags.append({
+            'Key': demisto.args().get('tag_key'),
+            'Value': demisto.args().get('tag_value')
+        })
+    else:
+        if tags_str is not None:
+            for f in tags_str.split(';'):
+                match = regex.match(f)
+                if match is None:
+                    demisto.log('could not parse field: %s' % (f,))
+                    continue
+
+                tags.append({
+                    'Key': match.group(1),
+                    'Value': match.group(2)
+                })
+
+    return tags
+
+
+def aws_session(service='network-firewall', region=None, roleArn=None, roleSessionName=None,
+                roleSessionDuration=None, rolePolicy=None):
     kwargs = {}
     if roleArn and roleSessionName is not None:
         kwargs.update({
@@ -65,7 +104,8 @@ def aws_session(service='network-firewall', region=None, roleArn=None, roleSessi
     if kwargs and AWS_ACCESS_KEY_ID is None:
 
         if AWS_ACCESS_KEY_ID is None:
-            sts_client = boto3.client('sts', config=config, verify=VERIFY_CERTIFICATE)
+            sts_client = boto3.client(
+                'sts', config=config, verify=VERIFY_CERTIFICATE)
             sts_response = sts_client.assume_role(**kwargs)
             if region is not None:
                 client = boto3.client(
@@ -123,6 +163,8 @@ def aws_session(service='network-firewall', region=None, roleArn=None, roleSessi
             client = boto3.client(
                 service_name=service,
                 region_name=AWS_DEFAULT_REGION,
+                aws_access_key_id=AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
                 verify=VERIFY_CERTIFICATE,
                 config=config
             )
@@ -130,73 +172,70 @@ def aws_session(service='network-firewall', region=None, roleArn=None, roleSessi
     return client
 
 
-def parse_filter_field(filter_str):
-    filters = []
-    regex = re.compile(r'name=([\w\d_:.-]+),values=([ /\w\d@_,.*-]+)', flags=re.I)
-    for f in filter_str.split(';'):
-        match = regex.match(f)
-        if match is None:
-            demisto.log('could not parse filter: %s' % (f,))
-            continue
+def associate_firewall_policy_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "UpdateToken": args.get("update_token", None),
+        "FirewallArn": args.get("firewall_arn", None),
+        "FirewallName": args.get("firewall_name", None),
+        "FirewallPolicyArn": args.get("firewall_policy_arn", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.associate_firewall_policy(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.AssociationResults.FirewallPolicy(val.FirewallArn === obj.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall AssociateFirewallPolicy'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
-        filters.append({
-            'Name': match.group(1),
-            'Values': match.group(2).split(',')
+
+def associate_subnets_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "UpdateToken": args.get("update_token", None),
+        "FirewallArn": args.get("firewall_arn", None),
+        "FirewallName": args.get("firewall_name", None),
+        "SubnetMappings": [],
+    }
+    subnet_ids = parse_resource_ids(args.get("subnet_mappings_subnet_ids"))
+    for subnet_id in subnet_ids:
+        kwargs["SubnetMappings"].append({
+            "SubnetId": subnet_id
         })
 
-    return filters
-
-
-def parse_tag_field(tags_str):
-    tags = []
-    regex = re.compile(r'key=([\w\d_:.-]+),value=([ /\w\d@_,.*-]+)', flags=re.I)
-    for f in tags_str.split(';'):
-        match = regex.match(f)
-        if match is None:
-            demisto.log('could not parse field: %s' % (f,))
-            continue
-
-        tags.append({
-            'Key': match.group(1),
-            'Value': match.group(2)
-        })
-
-    return tags
-
-
-class DatetimeEncoder(json.JSONEncoder):
-    # pylint: disable=method-hidden
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.strftime('%Y-%m-%dT%H:%M:%S')
-        elif isinstance(obj, date):
-            return obj.strftime('%Y-%m-%d')
-        # Let the base class default method raise the TypeError
-        return json.JSONEncoder.default(self, obj)
-
-
-def parse_resource_ids(resource_id):
-    id_list = resource_id.replace(" ", "")
-    resourceIds = id_list.split(",")
-    return resourceIds
-
-
-def multi_split(data):
-    data = data.replace(" ", "")
-    data = data.split(";")
-    return data
-
-
-def parse_date(dt):
-    try:
-        arr = dt.split("-")
-        parsed_date = (datetime(int(arr[0]), int(arr[1]), int(arr[2]))).isoformat()
-    except ValueError as e:
-        return_error("Date could not be parsed. Please check the date again.\n{error}".format(error=e))
-    return parsed_date
-
-
-"""MAIN FUNCTIONS"""
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.associate_subnets(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.AssociationResults.Subnets(val.FirewallArn === obj.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall AssociateSubnets'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
 
 def create_firewall_command(args):
@@ -206,35 +245,37 @@ def create_firewall_command(args):
         roleSessionName=args.get('roleSessionName'),
         roleSessionDuration=args.get('roleSessionDuration'),
     )
-
     kwargs = {
-        'FirewallName': args.get('FirewallName'),
-        'FirewallPolicyArn': args.get('FirewallPolicyArn'),
-        'SubnetMappings': json.loads(args.get('SubnetMappings')),
-        'VpcId': args.get('VpcId')
+        "FirewallName": args.get("firewall_name", None),
+        "FirewallPolicyArn": args.get("firewall_policy_arn", None),
+        "VpcId": args.get("vpc_id", None),
+        "SubnetMappings": [],
+        "DeleteProtection": True if args.get("delete_protection", "") == "true" else None,
+        "SubnetChangeProtection": True if args.get("subnet_change_protection", "") == "true" else None,
+        "FirewallPolicyChangeProtection": True if args.get("firewall_policy_change_protection", "") == "true" else None,
+        "Description": args.get("description", None),
+        "Tags": parse_tag_field(args.get("tags")),
     }
-
-    if args.get('DeleteProtection') == 'yes':
-        kwargs['DeleteProtection'] = True
-    else:
-        kwargs['DeleteProtection'] = False
-
-    if args.get('Description') is not None:
-        kwargs['Description'] = args.get('Description')
-
+    subnet_ids = parse_resource_ids(args.get("subnet_mappings_subnet_ids"))
+    for subnet_id in subnet_ids:
+        kwargs["SubnetMappings"].append({
+            "SubnetId": subnet_id
+        })
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
     response = client.create_firewall(**kwargs)
-    if 'Firewall' in response and 'FirewallStatus' in response and 'UpdateToken' in response:
-        data = {
-            'Firewall': response['Firewall'],
-            'FirewallStatus': response['FirewallStatus'],
-            'UpdateToken': response['UpdateToken']
-        }
-    else:
-        data = response
-
-    ec = {'AWS.NetworkFirewall.Firewall': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Created', data)
-    return_outputs(human_readable, ec)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.Firewall(val.Firewall.FirewallArn === obj.Firewall.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall CreateFirewall'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
 
 def create_firewall_policy_command(args):
@@ -244,27 +285,28 @@ def create_firewall_policy_command(args):
         roleSessionName=args.get('roleSessionName'),
         roleSessionDuration=args.get('roleSessionDuration'),
     )
-
     kwargs = {
-        'FirewallPolicyName': args.get('FirewallPolicyName')
+        "FirewallPolicyName": args.get("firewall_policy_name", None),
+        "FirewallPolicy": safe_load_json(args.get("firewall_policy_json",None)),
+        "Description": args.get("description", None),
+        "Tags": parse_tag_field(args.get("tags")),
+
     }
-
-    try:
-        kwargs['FirewallPolicy'] = json.loads(args.get('FirewallPolicy'))
-    except Exception as e:
-        LOG(str(e))
-        return_error("Error encountered when parsing FirewallPolicy. Expected JSON FirewallPolicy object")
-
-    if args.get('Description') is not None:
-        kwargs['Description'] = args.get('Description')
-
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
     response = client.create_firewall_policy(**kwargs)
-
-    data = response['FirewallPolicyResponse']
-
-    ec = {'AWS.NetworkFirewall.FirewallPolicy': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policy Created', data)
-    return_outputs(human_readable, ec)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.FirewallPolicy(val.FirewallPolicyResponse.FirewallPolicyArn === obj.FirewallPolicyResponse.FirewallPolicyArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall CreateFirewallPolicy'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
 
 def create_rule_group_command(args):
@@ -274,279 +316,31 @@ def create_rule_group_command(args):
         roleSessionName=args.get('roleSessionName'),
         roleSessionDuration=args.get('roleSessionDuration'),
     )
-
-    try:
-        rule_group = json.loads(args.get('RuleGroup'))
-    except Exception as e:
-        LOG(str(e))
-        return_error("Error encountered when parsing RuleGroup. Expected JSON RuleGroup object")
-
     kwargs = {
-        'Capacity': int(args.get('Capacity')),
-        'RuleGroup': rule_group,
-        'RuleGroupName': args.get('RuleGroupName'),
-        'Type': args.get('Type')
+        "RuleGroupName": args.get("rule_group_name", None),
+        "RuleGroup": safe_load_json(args.get("rule_group_json")),
+        "Rules": args.get("rules", None),
+        "Type": args.get("type", None),
+        "Capacity": int(args.get("capacity", None)),
+        "Description": args.get("description", None),
+        "Tags": parse_tag_field(args.get("tags")),
+
     }
-
-    if args.get('Description') is not None:
-        kwargs['Description'] = args.get('Description')
-
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
     response = client.create_rule_group(**kwargs)
-    data = response['RuleGroupResponse']
-    data['UpdateToken'] = response['UpdateToken']
-
-    ec = {'AWS.NetworkFirewall.RuleGroup': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - Rule Group Creation', data)
-    return_outputs(human_readable, ec)
-
-
-def describe_firewall_command(args):
-    client = aws_session(
-        region=args.get('region'),
-        roleArn=args.get('roleArn'),
-        roleSessionName=args.get('roleSessionName'),
-        roleSessionDuration=args.get('roleSessionDuration'),
-    )
-
-    kwargs = {}
-    if args.get('FirewallArn') is not None:
-        kwargs.update({'FirewallArn': args.get('FirewallArn')})
-    elif args.get('FirewallName') is not None:
-        kwargs.update({'FirewallName': args.get('FirewallName')})
-    else:
-        return_error("Invalid request . You must specify the FirewallArn or FirewallName.")
-
-    response = client.describe_firewall(**kwargs)
-
-    if 'Firewall' in response and 'FirewallStatus' in response and 'UpdateToken' in response:
-        data = {
-            'Firewall': response['Firewall'],
-            'FirewallStatus': response['FirewallStatus'],
-            'UpdateToken': response['UpdateToken']
-        }
-    else:
-        data = response
-
-    ec = {'AWS.NetworkFirewall.Firewall': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - Firewall', data)
-    return_outputs(human_readable, ec)
-
-
-def describe_firewall_policy_command(args):
-    client = aws_session(
-        region=args.get('region'),
-        roleArn=args.get('roleArn'),
-        roleSessionName=args.get('roleSessionName'),
-        roleSessionDuration=args.get('roleSessionDuration'),
-    )
-
-    kwargs = {}
-    if args.get('FirewallPolicyArn') is not None:
-        kwargs.update({'FirewallPolicyArn': args.get('FirewallPolicyArn')})
-    elif args.get('FirewallPolicyName') is not None:
-        kwargs.update({'FirewallPolicyName': args.get('FirewallPolicyName')})
-    else:
-        return_error("Invalid request . You must specify the FirewallPolicyArn or FirewallPolicyName.")
-
-    response = client.describe_firewall_policy(**kwargs)
-
-    if 'FirewallPolicy' in response and 'FirewallPolicyResponse' in response and 'UpdateToken' in response:
-        data = {
-            'FirewallPolicy': response['FirewallPolicy'],
-            'FirewallPolicyResponse': response['FirewallPolicyResponse'],
-            'UpdateToken': response['UpdateToken'],
-        }
-    else:
-        data = response
-
-    ec = {'AWS.NetworkFirewall.FirewallPolicies': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policy', data)
-    return_outputs(human_readable, ec)
-
-
-def describe_rule_group_command(args):
-    client = aws_session(
-        region=args.get('region'),
-        roleArn=args.get('roleArn'),
-        roleSessionName=args.get('roleSessionName'),
-        roleSessionDuration=args.get('roleSessionDuration'),
-    )
-
-    kwargs = {}
-    if args.get('RuleGroupArn') is not None:
-        kwargs.update({'RuleGroupArn': args.get('RuleGroupArn')})
-    elif args.get('RuleGroupName') is not None and args.get('Type') is not None:
-        kwargs.update({'RuleGroupName': args.get('RuleGroupName')})
-        kwargs.update({'Type': args.get('Type')})
-    else:
-        return_error("Invalid request . You must specify the RuleGroupArn or RuleGroupName (and Type).")
-
-    response = client.describe_rule_group(**kwargs)
-
-    if 'RuleGroup' in response and 'RuleGroupResponse' in response and 'UpdateToken' in response:
-        data = [{
-            'RuleGroup': response['RuleGroup'],
-            'RuleGroupResponse': response['RuleGroupResponse'],
-            'UpdateToken': response['UpdateToken'],
-        }]
-    else:
-        data = response
-
-    ec = {'AWS.NetworkFirewall.RuleGroups': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - RuleGroup', data)
-    return_outputs(human_readable, ec)
-
-
-def list_firewalls_command(args):
-    client = aws_session(
-        region=args.get('region'),
-        roleArn=args.get('roleArn'),
-        roleSessionName=args.get('roleSessionName'),
-        roleSessionDuration=args.get('roleSessionDuration'),
-    )
-
-    kwargs = {
-        'MaxResults': int(args.get('MaxResults'))
-    }
-
-    if args.get('VpcIds') is not None:
-        kwargs.update({'VpcIds': args.get('VpcIds')})
-
-    data = []
-    response = client.list_firewalls(**kwargs)
-
-    for firewall in response["Firewalls"]:
-        data.append(firewall)
-
-    ec = {'AWS.NetworkFirewall.Firewalls(val.FirewallArn === obj.FirewallArn)': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - Firewalls', data)
-    return_outputs(human_readable, ec)
-
-
-def list_firewall_policies_command(args):
-    client = aws_session(
-        region=args.get('region'),
-        roleArn=args.get('roleArn'),
-        roleSessionName=args.get('roleSessionName'),
-        roleSessionDuration=args.get('roleSessionDuration'),
-    )
-
-    kwargs = {
-        'MaxResults': int(args.get('MaxResults'))
-    }
-
-    data = []
-    response = client.list_firewall_policies(**kwargs)
-
-    for fw_policy in response["FirewallPolicies"]:
-        data.append(fw_policy)
-
-    ec = {'AWS.NetworkFirewall.FirewallPolicies(val.Arn === obj.Arn)': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policies', data)
-    return_outputs(human_readable, ec)
-
-
-def list_rule_groups_command(args):
-    client = aws_session(
-        region=args.get('region'),
-        roleArn=args.get('roleArn'),
-        roleSessionName=args.get('roleSessionName'),
-        roleSessionDuration=args.get('roleSessionDuration'),
-    )
-
-    kwargs = {
-        'MaxResults': int(args.get('MaxResults'))
-    }
-
-    data = []
-    response = client.list_rule_groups(**kwargs)
-
-    for rulegroup in response["RuleGroups"]:
-        data.append(rulegroup)
-
-    ec = {'AWS.NetworkFirewall.RuleGroups(val.Arn === obj.Arn)': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - Rule Groups', data)
-    return_outputs(human_readable, ec)
-
-
-def update_firewall_policy_command(args):
-    client = aws_session(
-        region=args.get('region'),
-        roleArn=args.get('roleArn'),
-        roleSessionName=args.get('roleSessionName'),
-        roleSessionDuration=args.get('roleSessionDuration'),
-    )
-
-    kwargs = {}
-
-    if args.get('FirewallPolicyName') is not None:
-        kwargs['FirewallPolicyName'] = args.get('FirewallPolicyName')
-    elif args.get('FirewallPolicyArn') is not None:
-        kwargs['FirewallPolicyArn'] = args.get('FirewallPolicyArn')
-    else:
-        return_error("You must specify the FirewallPolicyArn or the FirewallPolicyName, and you can specify both.")
-
-    # Get update token
-    current_policy = client.describe_firewall_policy(**kwargs)
-    update_token = current_policy['UpdateToken']
-    kwargs['UpdateToken'] = update_token
-
-    try:
-        kwargs['FirewallPolicy'] = json.loads(args.get('FirewallPolicy'))
-    except Exception as e:
-        LOG(str(e))
-        return_error("Error encountered when parsing FirewallPolicy. Expected JSON FirewallPolicy object")
-
-    if args.get('Description') is not None:
-        kwargs['Description'] = args.get('Description')
-
-    response = client.update_firewall_policy(**kwargs)
-
-    ec = {'AWS.NetworkFirewall.FirewallPolicy': response}
-    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policy Updated', response)
-    return_outputs(human_readable, ec)
-
-
-def update_rule_group_command(args):
-    client = aws_session(
-        region=args.get('region'),
-        roleArn=args.get('roleArn'),
-        roleSessionName=args.get('roleSessionName'),
-        roleSessionDuration=args.get('roleSessionDuration'),
-    )
-
-    kwargs = {}
-
-    if args.get('RuleGroupName') is not None:
-        kwargs['RuleGroupName'] = args.get('RuleGroupName')
-    elif args.get('RuleGroupArn') is not None:
-        kwargs['RuleGroupArn'] = args.get('RuleGroupArn')
-    else:
-        return_error("You must specify the RuleGroupArn or the RuleGroupName, and you can specify both.")
-
-    # Get update token
-    current_rule_group = client.describe_rule_group(**kwargs)
-    kwargs['UpdateToken'] = current_rule_group['UpdateToken']
-
-    if 'RuleGroupArn' not in kwargs:
-        kwargs['Type'] = current_rule_group['RuleGroupResponse']['Type']
-
-    try:
-        kwargs['RuleGroup'] = json.loads(args.get('RuleGroup'))
-    except Exception as e:
-        LOG(str(e))
-        return_error("Error encountered when parsing RuleGroup. Expected JSON RuleGroup object")
-
-    if args.get('Description') is not None:
-        kwargs['Description'] = args.get('Description')
-
-    response = client.update_rule_group(**kwargs)
-    data = response['RuleGroupResponse']
-    data['UpdateToken'] = response['UpdateToken']
-
-    ec = {'AWS.NetworkFirewall.RuleGroup': data}
-    human_readable = tableToMarkdown('AWS Network Firewall - Rule Group Updated', data)
-    return_outputs(human_readable, ec)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.RuleGroup(val.RuleGroupResponse.RuleGroupArn === obj.RuleGroupResponse.RuleGroupArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall CreateRuleGroup'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
 
 def delete_firewall_command(args):
@@ -556,19 +350,25 @@ def delete_firewall_command(args):
         roleSessionName=args.get('roleSessionName'),
         roleSessionDuration=args.get('roleSessionDuration'),
     )
-
-    kwargs = {}
-
-    if args.get('FirewallName') is not None:
-        kwargs['FirewallName'] = args.get('FirewallName')
-    elif args.get('FirewallArn') is not None:
-        kwargs['FirewallArn'] = args.get('FirewallArn')
-    else:
-        return_error("You must specify the FirewallArn or the FirewallName, and you can specify both.")
-
+    kwargs = {
+        "FirewallName": args.get("firewall_name", None),
+        "FirewallArn": args.get("firewall_arn", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
     response = client.delete_firewall(**kwargs)
-    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Deletion', response)
-    return_outputs(human_readable)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.Firewall(val.Firewall.FirewallArn === obj.Firewall.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DeleteFirewall'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
 
 def delete_firewall_policy_command(args):
@@ -578,20 +378,51 @@ def delete_firewall_policy_command(args):
         roleSessionName=args.get('roleSessionName'),
         roleSessionDuration=args.get('roleSessionDuration'),
     )
-    kwargs = {}
-
-    if args.get('FirewallPolicyName') is not None:
-        kwargs['FirewallPolicyName'] = args.get('FirewallPolicyName')
-    elif args.get('FirewallPolicyArn') is not None:
-        kwargs['FirewallPolicyArn'] = args.get('FirewallPolicyArn')
-    else:
-        return_error("You must specify the FirewallPolicyArn or the FirewallPolicyName, and you can specify both.")
-
+    kwargs = {
+        "FirewallPolicyName": args.get("firewall_policy_name", None),
+        "FirewallPolicyArn": args.get("firewall_policy_arn", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
     response = client.delete_firewall_policy(**kwargs)
-    data = response['FirewallPolicyResponse']
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.FirewallPolicy(val.FirewallPolicyResponse.FirewallPolicyArn === obj.FirewallPolicyResponse.FirewallPolicyArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DeleteFirewallPolicy'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
-    human_readable = tableToMarkdown('AWS Network Firewall - Firewall Policy Deletion', data)
-    return_outputs(human_readable)
+
+def delete_resource_policy_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "ResourceArn": args.get("resource_arn", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.delete_resource_policy(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = None
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DeleteResourcePolicy'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
 
 def delete_rule_group_command(args):
@@ -601,73 +432,713 @@ def delete_rule_group_command(args):
         roleSessionName=args.get('roleSessionName'),
         roleSessionDuration=args.get('roleSessionDuration'),
     )
-
     kwargs = {
-        'Type': args.get('Type')
+        "RuleGroupName": args.get("rule_group_name", None),
+        "RuleGroupArn": args.get("rule_group_arn", None),
+        "Type": args.get("type", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.delete_rule_group(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.RuleGroup(val.RuleGroupResponse.RuleGroupArn === obj.RuleGroupResponse.RuleGroupArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DeleteRuleGroup'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def describe_firewall_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "FirewallName": args.get("firewall_name", None),
+        "FirewallArn": args.get("firewall_arn", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.describe_firewall(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.Firewall(val.Firewall.FirewallArn === obj.Firewall.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DescribeFirewall'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def describe_firewall_policy_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "FirewallPolicyName": args.get("firewall_policy_name", None),
+        "FirewallPolicyArn": args.get("firewall_policy_arn", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.describe_firewall_policy(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.FirewallPolicy(val.FirewallPolicyResponse.FirewallPolicyArn === obj.FirewallPolicyResponse.FirewallPolicyArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DescribeFirewallPolicy'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def describe_logging_configuration_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "FirewallArn": args.get("firewall_arn", None),
+        "FirewallName": args.get("firewall_name", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.describe_logging_configuration(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.Logging(val.FirewallArn === obj.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DescribeLoggingConfiguration'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def describe_resource_policy_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "ResourceArn": args.get("resource_arn", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.describe_resource_policy(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {'AWS-Network Firewall.Policy': response['Policy']}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DescribeResourcePolicy'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def describe_rule_group_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "RuleGroupName": args.get("rule_group_name", None),
+        "RuleGroupArn": args.get("rule_group_arn", None),
+        "Type": args.get("type", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.describe_rule_group(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.RuleGroup(val.RuleGroupResponse.RuleGroupArn === obj.RuleGroupResponse.RuleGroupArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DescribeRuleGroup'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def disassociate_subnets_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "UpdateToken": args.get("update_token", None),
+        "FirewallArn": args.get("firewall_arn", None),
+        "FirewallName": args.get("firewall_name", None),
+        "SubnetIds": parse_resource_ids(args.get("subnet_ids", ""))
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.disassociate_subnets(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.AssociationResults.Subnets(val.FirewallArn === obj.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall DisassociateSubnets'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def list_firewall_policies_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "NextToken": args.get("next_token", None),
+        "MaxResults": args.get("max_results", None),
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.list_firewall_policies(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.FirewallPolicies(val.Arn === obj.Arn)': response.get('FirewallPolicies')}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall ListFirewallPolicies'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def list_firewalls_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "NextToken": args.get("next_token", None),
+        "VpcIds": parse_resource_ids(args.get("vpc_ids", None)),
     }
 
-    if args.get('RuleGroupName') is not None:
-        kwargs['RuleGroupName'] = args.get('RuleGroupName')
-    elif args.get('RuleGroupArn') is not None:
-        kwargs['RuleGroupArn'] = args.get('RuleGroupArn')
-    else:
-        return_error("You must specify the RuleGroupArn or the RuleGroupName, and you can specify both.")
+    kwargs = remove_empty_elements(kwargs)
 
-    response = client.delete_rule_group(**kwargs)
-    data = response['RuleGroupResponse']
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
 
-    human_readable = tableToMarkdown('AWS Network Firewall - Rule Group Deletion', data)
-    return_outputs(human_readable)
+    response = client.list_firewalls(**kwargs)
+
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.Firewalls(val.FirewallArn === obj.FirewallArn)': response.get('Firewalls')}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall ListFirewalls'
+    human_readable = tableToMarkdown(table_header, response)
+    return human_readable, outputs, response
 
 
-"""COMMAND BLOCK"""
+def list_rule_groups_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "NextToken": args.get("next_token", None),
+        "MaxResults": args.get("max_results",None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.list_rule_groups(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.RuleGroups(val.Arn === obj.Arn)': response.get('RuleGroups')}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall ListRuleGroups'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
 
-try:
-    LOG('Command being called is {command}'.format(command=demisto.command()))
-    if demisto.command() == 'test-module':
-        # This is the call made when pressing the integration test button.
-        client = aws_session()
-        response = client.list_firewalls(MaxResults=6)
-        if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-            demisto.results('ok')
+def list_tags_for_resource_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "NextToken": args.get("next_token", None),
+        "ResourceArn": args.get("resource_arn", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.list_tags_for_resource(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {'AWS-NetworkFirewall': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall ListTagsForResource'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
 
-    elif demisto.command() == 'aws-network-firewall-create-firewall':
-        create_firewall_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-create-firewall-policy':
-        create_firewall_policy_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-create-rule-group':
-        create_rule_group_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-describe-firewall':
-        describe_firewall_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-describe-firewall-policy':
-        describe_firewall_policy_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-describe-rule-group':
-        describe_rule_group_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-list-firewalls':
-        list_firewalls_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-list-firewall-policies':
-        list_firewall_policies_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-list-rule-groups':
-        list_rule_groups_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-update-firewall-policy':
-        update_firewall_policy_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-update-rule-group':
-        update_rule_group_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-delete-firewall':
-        delete_firewall_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-delete-firewall-policy':
-        delete_firewall_policy_command(demisto.args())
-    elif demisto.command() == 'aws-network-firewall-delete-rule-group':
-        delete_rule_group_command(demisto.args())
 
-except ResponseParserError as e:
-    LOG(str(e))
-    return_error(
-        'Could not connect to the AWS endpoint. Please check that the region is valid.\n {error}'.format(
+def put_resource_policy_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "ResourceArn": args.get("resource_arn", None),
+        "Policy": args.get("policy", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.put_resource_policy(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = None
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall PutResourcePolicy'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def tag_resource_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "ResourceArn": args.get("resource_arn", None),
+        "Tags": parse_tag_field(args.get("tags")),
+
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.tag_resource(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = None
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall TagResource'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def untag_resource_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "ResourceArn": args.get("resource_arn", None),
+        "TagKeys": parse_resource_ids(args.get("tag_keys", ""))
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.untag_resource(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = None
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall UntagResource'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def update_firewall_delete_protection_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "UpdateToken": args.get("update_token", None),
+        "FirewallArn": args.get("firewall_arn", None),
+        "FirewallName": args.get("firewall_name", None),
+        "DeleteProtection": True if args.get("delete_protection", "") == "True" else False
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.update_firewall_delete_protection(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.FirewallAttributes(val.FirewallArn === obj.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall UpdateFirewallDeleteProtection'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def update_firewall_description_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "UpdateToken": args.get("update_token", None),
+        "FirewallArn": args.get("firewall_arn", None),
+        "FirewallName": args.get("firewall_name", None),
+        "Description": args.get("description", None)
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.update_firewall_description(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.FirewallAttributes(val.FirewallArn === obj.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall UpdateFirewallDescription'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def update_firewall_policy_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "UpdateToken": args.get("update_token", None),
+        "FirewallPolicyArn": args.get("firewall_policy_arn", None),
+        "FirewallPolicyName": args.get("firewall_policy_name", None),
+        "FirewallPolicy": safe_load_json(args.get("firewall_policy_json", None)),
+        "Description": args.get("description", None),
+        "DryRun": True if args.get("dry_run", "") == "true" else None
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.update_firewall_policy(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.FirewallPolicy(val.FirewallPolicyResponse.FirewallPolicyArn === obj.FirewallPolicyResponse.FirewallPolicyArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall UpdateFirewallPolicy'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def update_firewall_policy_change_protection_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "UpdateToken": args.get("update_token", None),
+        "FirewallArn": args.get("firewall_arn", None),
+        "FirewallName": args.get("firewall_name", None),
+        "FirewallPolicyChangeProtection": True if args.get("firewall_policy_change_protection", "") == "True" else False
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.update_firewall_policy_change_protection(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.FirewallAttributes(val.FirewallArn === obj.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall UpdateFirewallPolicyChangeProtection'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def update_logging_configuration_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "FirewallArn": args.get("firewall_arn", None),
+        "FirewallName": args.get("firewall_name", None),
+        "LoggingConfiguration": safe_load_json(args.get("logging_configuration_json", None)),
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.update_logging_configuration(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.Logging(val.FirewallArn === obj.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall UpdateLoggingConfiguration'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def update_rule_group_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "UpdateToken": args.get("update_token", None),
+        "RuleGroupArn": args.get("rule_group_arn", None),
+        "RuleGroupName": args.get("rule_group_name", None),
+        "RuleGroup": safe_load_json(args.get("rule_group_json", None)),
+        "Rules": args.get("rules", None),
+        "Type": args.get("type", None),
+        "Description": args.get("description", None),
+        "DryRun": True if args.get("dry_run", "") == "true" else None
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.update_rule_group(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.RuleGroup(val.RuleGroupResponse.RuleGroupArn === obj.RuleGroupResponse.RuleGroupArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall UpdateRuleGroup'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+def update_subnet_change_protection_command(args):
+    client = aws_session(
+        region=args.get('region'),
+        roleArn=args.get('roleArn'),
+        roleSessionName=args.get('roleSessionName'),
+        roleSessionDuration=args.get('roleSessionDuration'),
+    )
+    kwargs = {
+        "UpdateToken": args.get("update_token", None),
+        "FirewallArn": args.get("firewall_arn", None),
+        "FirewallName": args.get("firewall_name", None),
+        "SubnetChangeProtection": True if args.get("subnet_change_protection", "") == "True" else False
+    }
+    kwargs = remove_empty_elements(kwargs)
+    if args.get('raw_json') is not None and not kwargs:
+        del kwargs
+        kwargs = safe_load_json(args.get('raw_json', "{ }"))
+    elif args.get('raw_json') is not None and kwargs:
+        return_error("Please remove other arguments before using 'raw-json'.")
+    response = client.update_subnet_change_protection(**kwargs)
+    response = json.dumps(response, default=myconverter)
+    response = json.loads(response)
+    outputs = {
+        'AWS-NetworkFirewall.FirewallAttributes(val.FirewallArn === obj.FirewallArn)': response}
+    del response['ResponseMetadata']
+    table_header = 'AWS Network Firewall UpdateSubnetChangeProtection'
+    human_readable = aws_table_to_markdown(response, table_header)
+    return human_readable, outputs, response
+
+
+''' COMMANDS MANAGER / SWITCH PANEL '''
+
+
+def main():  # pragma: no cover
+    args = demisto.args()
+    human_readable = None
+    outputs = None
+    try:
+        LOG('Command being called is {command}'.format(
+            command=demisto.command()))
+        if demisto.command() == 'test-module':
+            # This is the call made when pressing the integration test button.
+            client = aws_session()
+            response = client.REPLACE_WITH_TEST_FUNCTION()
+            if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+                demisto.results('ok')
+
+        elif demisto.command() == 'aws-network-firewall-associate-firewall-policy':
+            human_readable, outputs, response = associate_firewall_policy_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-associate-subnets':
+            human_readable, outputs, response = associate_subnets_command(args)
+        elif demisto.command() == 'aws-network-firewall-create-firewall':
+            human_readable, outputs, response = create_firewall_command(args)
+        elif demisto.command() == 'aws-network-firewall-create-firewall-policy':
+            human_readable, outputs, response = create_firewall_policy_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-create-rule-group':
+            human_readable, outputs, response = create_rule_group_command(args)
+        elif demisto.command() == 'aws-network-firewall-delete-firewall':
+            human_readable, outputs, response = delete_firewall_command(args)
+        elif demisto.command() == 'aws-network-firewall-delete-firewall-policy':
+            human_readable, outputs, response = delete_firewall_policy_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-delete-resource-policy':
+            human_readable, outputs, response = delete_resource_policy_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-delete-rule-group':
+            human_readable, outputs, response = delete_rule_group_command(args)
+        elif demisto.command() == 'aws-network-firewall-describe-firewall':
+            human_readable, outputs, response = describe_firewall_command(args)
+        elif demisto.command() == 'aws-network-firewall-describe-firewall-policy':
+            human_readable, outputs, response = describe_firewall_policy_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-describe-logging-configuration':
+            human_readable, outputs, response = describe_logging_configuration_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-describe-resource-policy':
+            human_readable, outputs, response = describe_resource_policy_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-describe-rule-group':
+            human_readable, outputs, response = describe_rule_group_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-disassociate-subnets':
+            human_readable, outputs, response = disassociate_subnets_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-list-firewall-policies':
+            human_readable, outputs, response = list_firewall_policies_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-list-firewalls':
+            human_readable, outputs, response = list_firewalls_command(args)
+        elif demisto.command() == 'aws-network-firewall-list-rule-groups':
+            human_readable, outputs, response = list_rule_groups_command(args)
+        elif demisto.command() == 'aws-network-firewall-list-tags-for-resource':
+            human_readable, outputs, response = list_tags_for_resource_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-put-resource-policy':
+            human_readable, outputs, response = put_resource_policy_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-tag-resource':
+            human_readable, outputs, response = tag_resource_command(args)
+        elif demisto.command() == 'aws-network-firewall-untag-resource':
+            human_readable, outputs, response = untag_resource_command(args)
+        elif demisto.command() == 'aws-network-firewall-update-firewall-delete-protection':
+            human_readable, outputs, response = update_firewall_delete_protection_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-update-firewall-description':
+            human_readable, outputs, response = update_firewall_description_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-update-firewall-policy':
+            human_readable, outputs, response = update_firewall_policy_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-update-firewall-policy-change-protection':
+            human_readable, outputs, response = update_firewall_policy_change_protection_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-update-logging-configuration':
+            human_readable, outputs, response = update_logging_configuration_command(
+                args)
+        elif demisto.command() == 'aws-network-firewall-update-rule-group':
+            human_readable, outputs, response = update_rule_group_command(args)
+        elif demisto.command() == 'aws-network-firewall-update-subnet-change-protection':
+            human_readable, outputs, response = update_subnet_change_protection_command(
+                args)
+        return_outputs(human_readable, outputs, response)
+
+    except ResponseParserError as e:
+        return_error('Could not connect to the AWS endpoint. Please check that the region is valid. {error}'.format(
             error=type(e)))
+        LOG(e)
+    except Exception as e:
+        LOG(e)
+        return_error('Error has occurred in the AWS network-firewall Integration: {code} {message}'.format(
+            code=type(e), message=e))
 
-except Exception as e:
-    LOG(str(e))
-    return_error('Error has occurred in the AWS Network Firewall Integration: {code}\n {message}'.format(
-        code=type(e), message=str(e)))
+
+if __name__ in ["__builtin__", "builtins", '__main__']:  # pragma: no cover
+    main()
