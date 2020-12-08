@@ -81,7 +81,7 @@ Associates the specified subnets in the Amazon VPC to the firewall. You can spec
 | update_token | An optional token that you can use for optimistic locking. Network Firewall returns a token to your requests that access the firewall. The token marks the state of the firewall resource at the time of the request.  To make an unconditional change to the firewall, omit the token in your update request. Without the token, Network Firewall performs your updates regardless of whether the firewall has changed since you last retrieved it. To make a conditional change to the firewall, provide the token in your update request. Network Firewall uses the token to ensure that the firewall hasn't changed since you last retrieved it. If it has changed, the operation fails with an InvalidTokenException. If this happens, retrieve the firewall again to get a current copy of it with a new token. Reapply your changes as needed, then try the operation again using the new token. . | Optional | 
 | firewall_arn | The Amazon Resource Name (ARN) of the firewall. You must specify the ARN or the name, and you can specify both. . | Optional | 
 | firewall_name | The descriptive name of the firewall. You can't change the name of a firewall after you create it. You must specify the ARN or the name, and you can specify both. . | Optional | 
-| subnet_mappings_subnet_ids | The IDs of the subnets that you want to associate with the firewall. (comma separated). | Required | 
+| subnet_mappings_subnet_ids | Comma-separated  IDs of the subnets that you want to associate with the firewall. | Required | 
 
 
 #### Context Output
@@ -122,7 +122,7 @@ Creates an AWS Network Firewall Firewall and accompanying FirewallStatus for a V
 | firewall_name | The descriptive name of the firewall. You can't change the name of a firewall after you create it. | Required | 
 | firewall_policy_arn | The Amazon Resource Name (ARN) of the FirewallPolicy that you want to use for the firewall. | Required | 
 | vpc_id | The unique identifier of the VPC where Network Firewall should create the firewall.  You can't change this setting after you create the firewall. . | Required | 
-| subnet_mappings_subnet_ids | The IDs of the subnets that you want to associate with the firewall. (comma separated). | Required | 
+| subnet_mappings_subnet_ids | Comma-separated  IDs of the subnets that you want to associate with the firewall. | Required | 
 | delete_protection | &lt;p&gt;A flag indicating whether it is possible to delete the firewall. A setting of &lt;code&gt;TRUE&lt;/code&gt; indicates that the firewall is protected against deletion. Use this setting to protect against accidentally deleting a firewall that is in use. When you create a firewall, the operation initializes this flag to &lt;code&gt;TRUE&lt;/code&gt;.&lt;/p&gt;. Possible values are: True, False. | Optional | 
 | subnet_change_protection | &lt;p&gt;A setting indicating whether the firewall is protected against changes to the subnet associations. Use this setting to protect against accidentally modifying the subnet associations for a firewall that is in use. When you create a firewall, the operation initializes this setting to &lt;code&gt;TRUE&lt;/code&gt;.&lt;/p&gt;. Possible values are: True, False. | Optional | 
 | firewall_policy_change_protection | &lt;p&gt;A setting indicating whether the firewall is protected against a change to the firewall policy association. Use this setting to protect against accidentally modifying the firewall policy for a firewall that is in use. When you create a firewall, the operation initializes this setting to &lt;code&gt;TRUE&lt;/code&gt;.&lt;/p&gt;. Possible values are: True, False. | Optional | 
@@ -1148,7 +1148,7 @@ Updates the properties of the specified firewall policy.
 
 ### aws-network-firewall-update-firewall-policy-change-protection
 ***
- 
+Update the firewall policy change protection
 
 
 #### Base Command
@@ -1287,7 +1287,7 @@ Updates the rule settings for the specified rule group. You use a rule group by 
 
 ### aws-network-firewall-update-subnet-change-protection
 ***
- 
+Update the firewall subnet change  protection
 
 
 #### Base Command
@@ -1305,7 +1305,7 @@ Updates the rule settings for the specified rule group. You use a rule group by 
 | update_token | An optional token that you can use for optimistic locking. Network Firewall returns a token to your requests that access the firewall. The token marks the state of the firewall resource at the time of the request.  To make an unconditional change to the firewall, omit the token in your update request. Without the token, Network Firewall performs your updates regardless of whether the firewall has changed since you last retrieved it. To make a conditional change to the firewall, provide the token in your update request. Network Firewall uses the token to ensure that the firewall hasn't changed since you last retrieved it. If it has changed, the operation fails with an InvalidTokenException. If this happens, retrieve the firewall again to get a current copy of it with a new token. Reapply your changes as needed, then try the operation again using the new token. . | Optional | 
 | firewall_arn | The Amazon Resource Name (ARN) of the firewall. You must specify the ARN or the name, and you can specify both. . | Optional | 
 | firewall_name | The descriptive name of the firewall. You can't change the name of a firewall after you create it. You must specify the ARN or the name, and you can specify both. . | Optional | 
-| subnet_change_protection | &lt;p&gt;A setting indicating whether the firewall is protected against changes to the subnet associations. Use this setting to protect against accidentally modifying the subnet associations for a firewall that is in use. When you create a firewall, the operation initializes this setting to &lt;code&gt;TRUE&lt;/code&gt;.&lt;/p&gt;. Possible values are: True, False. | Required | 
+| subnet_change_protection | A setting indicating whether the firewall is protected against changes to the subnet associations. Use this setting to protect against accidentally modifying the subnet associations for a firewall that is in use. When you create a firewall, the operation initializes this setting to TRUE. Possible values are: True, False. | Required | 
 
 
 #### Context Output
